@@ -433,6 +433,7 @@ export default function Home() {
   const [clubLeadSent, setClubLeadSent] = useState(false);
   const [showPromoPopup, setShowPromoPopup] = useState(false);
   const [promoRestanteMs, setPromoRestanteMs] = useState<number | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const coachesCarouselRef = useRef<HTMLDivElement | null>(null);
   const clubPhotosCarouselRef = useRef<HTMLDivElement | null>(null);
   const activeCarouselDragRef = useRef<HTMLDivElement | null>(null);
@@ -603,8 +604,21 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!mobileNavOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (mobileNavOpen) {
+        setMobileNavOpen(false);
+        return;
+      }
       if (showPromoPopup) {
         setShowPromoPopup(false);
         return;
@@ -616,7 +630,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeCoach, showPromoPopup]);
+  }, [activeCoach, showPromoPopup, mobileNavOpen]);
 
   useEffect(() => {
     const firstPopup = window.setTimeout(() => setShowPromoPopup(true), 12000);
@@ -627,11 +641,20 @@ export default function Home() {
     };
   }, []);
 
+  const closeMobileNav = () => setMobileNavOpen(false);
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen overflow-x-hidden bg-zinc-950 text-zinc-100">
       <header className="sticky top-0 z-50 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-xl">
-        <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3.5 md:px-8">
-          <a href="#hero" className="shrink-0 text-base font-extrabold tracking-wide text-white md:text-lg">
+        <nav
+          className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3.5 md:px-8"
+          aria-label="Navigation principale"
+        >
+          <a
+            href="#hero"
+            onClick={closeMobileNav}
+            className="min-w-0 shrink truncate text-sm font-extrabold tracking-wide text-white sm:text-base md:text-lg"
+          >
             Fitness Club & Kids
           </a>
           <div className="hidden min-w-0 flex-1 items-center justify-center gap-7 md:flex">
@@ -645,13 +668,102 @@ export default function Home() {
               </a>
             ))}
           </div>
-          <a
-            href="#inscription"
-            className="shrink-0 rounded-md border border-red-500 bg-red-600 px-3 py-2 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-red-500 md:px-4 md:text-sm"
-          >
-            S&apos;inscrire
-          </a>
+          <div className="flex shrink-0 items-center gap-2">
+            <a
+              href="#inscription"
+              className="hidden rounded-md border border-red-500 bg-red-600 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-red-500 sm:inline-flex"
+            >
+              S&apos;inscrire
+            </a>
+            <button
+              type="button"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/20 bg-zinc-900/80 text-zinc-100 transition hover:border-red-400 hover:text-white md:hidden"
+              aria-expanded={mobileNavOpen}
+              aria-controls="mobile-nav-panel"
+              aria-label={mobileNavOpen ? "Fermer le menu" : "Ouvrir le menu"}
+              onClick={() => setMobileNavOpen((open) => !open)}
+            >
+              {mobileNavOpen ? (
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+              )}
+            </button>
+          </div>
         </nav>
+
+        <AnimatePresence>
+          {mobileNavOpen && (
+            <>
+              <motion.button
+                type="button"
+                aria-label="Fermer le menu"
+                className="fixed inset-0 z-[60] bg-black/75 md:hidden"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={closeMobileNav}
+              />
+              <motion.div
+                id="mobile-nav-panel"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Menu de navigation mobile"
+                className="fixed inset-y-0 right-0 z-[61] flex h-dvh max-h-dvh w-[min(88vw,20rem)] min-h-0 flex-col border-l border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 md:hidden"
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", stiffness: 420, damping: 36 }}
+              >
+                <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-4">
+                  <span className="text-sm font-extrabold tracking-wide text-white">Menu</span>
+                  <button
+                    type="button"
+                    onClick={closeMobileNav}
+                    aria-label="Fermer le menu"
+                    className="flex h-9 w-9 items-center justify-center rounded border border-white/20 text-zinc-200 transition hover:border-red-400 hover:text-white"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                      <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </div>
+                <nav
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1"
+                  aria-label="Onglets de navigation"
+                >
+                  <ul className="flex flex-col">
+                    {navItems.map((item) => (
+                      <li key={item.href}>
+                        <a
+                          href={item.href}
+                          onClick={closeMobileNav}
+                          className="block border-b border-white/10 px-5 py-4 text-base font-semibold text-white transition hover:bg-red-500/15 active:bg-red-500/25"
+                        >
+                          {item.label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+                <div className="shrink-0 border-t border-white/10 bg-zinc-950 p-4">
+                  <a
+                    href="#inscription"
+                    onClick={closeMobileNav}
+                    className="flex w-full items-center justify-center rounded-md border border-red-500 bg-red-600 px-4 py-3.5 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-red-500"
+                  >
+                    S&apos;inscrire
+                  </a>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </header>
 
       <main>
