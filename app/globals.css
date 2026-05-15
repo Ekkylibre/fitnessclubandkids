@@ -28,3 +28,34 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+@keyframes marquee-rtl {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-avis-track {
+  display: flex;
+  width: max-content;
+  gap: 1.25rem;
+  animation: marquee-rtl 55s linear infinite;
+}
+
+.marquee-avis-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-avis-outer {
+    overflow-x: auto;
+    mask-image: none;
+  }
+
+  .marquee-avis-track {
+    animation: none;
+  }
+}
