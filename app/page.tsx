@@ -1199,7 +1199,7 @@ export default function Home() {
               <figure className="flex min-w-0 flex-col">
                 <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border-2 border-red-500/45 bg-black shadow-2xl shadow-red-950/40 ring-1 ring-white/10">
                   <Image
-                    src="/GoFit.png"
+                    src="/Affiche_GoFit.png"
                     alt="Affiche GoFit : 1 seance offerte du 15 au 30 avril 2026 — Fitness Club and Kids, Castres"
                     width={1024}
                     height={1536}
