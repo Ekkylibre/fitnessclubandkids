@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 
 type Coach = {
   id: number;
@@ -23,6 +23,11 @@ function srcPhotoCoach(nomComplet: string): string {
   const sansAccents = prenom.replace(/[\u0300-\u036f]/g, "");
   const base = sansAccents.replace(/[^a-zA-Z0-9-]/g, "");
   return `/${base}.JPG`;
+}
+
+/** Photo espace club : fichier dans `public/` (nom exact, espaces et accents inclus). */
+function srcPhotoClub(nomFichier: string): string {
+  return `/${nomFichier.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 const coachesData = [
@@ -118,26 +123,15 @@ const footerNavLinks = [
 ];
 
 const clubEspacePhotos: { src: string; alt: string }[] = [
-  {
-    src: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1200&q=80",
-    alt: "Salle de musculation et racks",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=1200&q=80",
-    alt: "Zone cardio et tapis",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?auto=format&fit=crop&w=1200&q=80",
-    alt: "Espace cours collectifs",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1540497077202-7c8a3999166f?auto=format&fit=crop&w=1200&q=80",
-    alt: "Halteres et zone fonctionnelle",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1593079831268-3381b0db4a43?auto=format&fit=crop&w=1200&q=80",
-    alt: "Machines et parcours libre",
-  },
+  { src: srcPhotoClub("Espace 1.JPG"), alt: "Espace du club" },
+  { src: srcPhotoClub("Espace  2.JPG"), alt: "Espace du club" },
+  { src: srcPhotoClub("Machines Cardio.JPG"), alt: "Machines cardio" },
+  { src: srcPhotoClub("Rameurs.JPG"), alt: "Rameurs" },
+  { src: srcPhotoClub("Haltères.JPG"), alt: "Zone haltères" },
+  { src: srcPhotoClub("Poids libre.JPG"), alt: "Poids libre" },
+  { src: srcPhotoClub("Machines guidées.JPG"), alt: "Machines guidées" },
+  { src: srcPhotoClub("Cours collectifs.JPG"), alt: "Salle cours collectifs" },
+  { src: srcPhotoClub("RMP.JPG"), alt: "Espace RMP" },
 ];
 
 /** Triple copie pour defilement infini (repositionnement sur la bande centrale). */
@@ -181,10 +175,13 @@ const planningCours: Record<string, string> = (() => {
   return map;
 })();
 
-const joursEssai = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-/** Colonnes : lun. 15 → sam. 20 juin 2026 (affichage court) */
+/** Creneaux GoFit : avril 2026 a partir du mercredi 15 (dimanche 19 non propose). */
+const datesEssaiGoFit = [15, 16, 17, 18, 20, 21].map((jour) => new Date(2026, 3, jour));
+const nomsJours = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"] as const;
+const joursEssai = datesEssaiGoFit.map((d) => nomsJours[d.getDay()]);
+
 function libelleColonneEssai(index: number) {
-  const d = new Date(2026, 5, 15 + index);
+  const d = datesEssaiGoFit[index];
   return `${joursEssai[index].slice(0, 3)} ${d.getDate()}`;
 }
 /** Lignes horaires : 12h-13h avec "-" ; places offertes 9h-11h et 14h-19h */
@@ -198,10 +195,23 @@ const planningEssai: Record<string, string> = Object.fromEntries(
   ),
 );
 
-/** Fin de la promo seances offertes : dimanche 14 juin 2026, fin de journee (heure locale) */
-const FIN_PROMO_SEANCES_OFFERTES = new Date(2026, 5, 14, 23, 59, 59, 999).getTime();
+/** Short YouTube de la campagne GoFit */
+const GOFIT_YOUTUBE_SHORT_ID = "iam5hTPiATo";
+
+/** Fin affichee de la promo : jeudi 30 avril 2026, minuit (fin de journee, heure locale) */
+const FIN_PROMO_SEANCES_OFFERTES = new Date(2026, 3, 30, 23, 59, 59, 999).getTime();
+
+/** Mise en scene : compte a rebours fictif (~1 j 23 h), la date affichee reste le 30 avril. */
+const PROMO_COMPTE_REBOURS_FICTIF = true;
+const PROMO_FICTIF_DUREE_MS = (2 * 86400 - 10 * 60) * 1000; // un peu moins de 2 jours (-10 min)
+
+let promoFictifDebutClient: number | null = null;
 
 function msUntilFinPromo() {
+  if (PROMO_COMPTE_REBOURS_FICTIF) {
+    if (promoFictifDebutClient === null) promoFictifDebutClient = Date.now();
+    return Math.max(0, PROMO_FICTIF_DUREE_MS - (Date.now() - promoFictifDebutClient));
+  }
   return Math.max(0, FIN_PROMO_SEANCES_OFFERTES - Date.now());
 }
 
@@ -434,6 +444,7 @@ export default function Home() {
   const [showPromoPopup, setShowPromoPopup] = useState(false);
   const [promoRestanteMs, setPromoRestanteMs] = useState<number | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [clubLightboxIndex, setClubLightboxIndex] = useState<number | null>(null);
   const coachesCarouselRef = useRef<HTMLDivElement | null>(null);
   const clubPhotosCarouselRef = useRef<HTMLDivElement | null>(null);
   const activeCarouselDragRef = useRef<HTMLDivElement | null>(null);
@@ -441,6 +452,7 @@ export default function Home() {
   const startXRef = useRef(0);
   const startScrollLeftRef = useRef(0);
   const clubLoopClampRef = useRef(false);
+  const clubScrollIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Carrousel club : bande en 3 copies, repositionnement sans saut visible. */
   const normalizeClubCarouselLoop = useCallback(() => {
@@ -466,6 +478,7 @@ export default function Home() {
     isDraggingRef.current = true;
     startXRef.current = clientX;
     startScrollLeftRef.current = container.scrollLeft;
+    container.classList.add("is-dragging");
   };
 
   const moveDrag = (clientX: number) => {
@@ -475,11 +488,53 @@ export default function Home() {
     el.scrollLeft = startScrollLeftRef.current - delta;
   };
 
+  const openClubPhotoLightbox = (loopIndex: number) => {
+    setClubLightboxIndex(loopIndex % clubEspacePhotos.length);
+  };
+
+  /** Evite que le carrousel capture le pointeur et bloque le clic sur carte / photo. */
+  const stopCarouselPointerBubble = (event: PointerEvent<HTMLElement>) => {
+    event.stopPropagation();
+  };
+
+  const closeClubPhotoLightbox = () => setClubLightboxIndex(null);
+
+  const stepClubLightbox = (delta: 1 | -1) => {
+    setClubLightboxIndex((current) => {
+      if (current === null) return null;
+      return (current + delta + clubEspacePhotos.length) % clubEspacePhotos.length;
+    });
+  };
+
   const endDrag = () => {
-    const wasClub = activeCarouselDragRef.current === clubPhotosCarouselRef.current;
+    const el = activeCarouselDragRef.current;
+    const wasClub = el === clubPhotosCarouselRef.current;
+    if (el) el.classList.remove("is-dragging");
     isDraggingRef.current = false;
     activeCarouselDragRef.current = null;
     if (wasClub) normalizeClubCarouselLoop();
+  };
+
+  const onCarouselPointerDown = (event: PointerEvent<HTMLDivElement>, container: HTMLDivElement | null) => {
+    if (event.pointerType !== "mouse" || !container) return;
+    if ((event.target as HTMLElement).closest("button, a, [role='button']")) return;
+    container.setPointerCapture(event.pointerId);
+    beginDrag(event.clientX, container);
+  };
+
+  const onCarouselPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "mouse" || !isDraggingRef.current) return;
+    moveDrag(event.clientX);
+  };
+
+  const onCarouselPointerEnd = (event: PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* capture deja relachee */
+    }
+    endDrag();
   };
 
   const scrollCoaches = (direction: "left" | "right") => {
@@ -558,12 +613,21 @@ export default function Home() {
   useEffect(() => {
     const el = clubPhotosCarouselRef.current;
     if (!el) return;
+
     const onScroll = () => {
-      if (isDraggingRef.current) return;
-      normalizeClubCarouselLoop();
+      if (isDraggingRef.current || clubLoopClampRef.current) return;
+
+      if (clubScrollIdleRef.current) clearTimeout(clubScrollIdleRef.current);
+      clubScrollIdleRef.current = setTimeout(() => {
+        normalizeClubCarouselLoop();
+      }, 120);
     };
+
     el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (clubScrollIdleRef.current) clearTimeout(clubScrollIdleRef.current);
+    };
   }, [normalizeClubCarouselLoop]);
 
   useEffect(() => {
@@ -604,16 +668,32 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!mobileNavOpen) return;
+    if (!mobileNavOpen && clubLightboxIndex === null) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [mobileNavOpen]);
+  }, [mobileNavOpen, clubLightboxIndex]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (clubLightboxIndex !== null) {
+        if (event.key === "Escape") {
+          closeClubPhotoLightbox();
+          return;
+        }
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          stepClubLightbox(-1);
+          return;
+        }
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          stepClubLightbox(1);
+          return;
+        }
+      }
       if (event.key !== "Escape") return;
       if (mobileNavOpen) {
         setMobileNavOpen(false);
@@ -630,7 +710,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeCoach, showPromoPopup, mobileNavOpen]);
+  }, [activeCoach, showPromoPopup, mobileNavOpen, clubLightboxIndex]);
 
   useEffect(() => {
     const firstPopup = window.setTimeout(() => setShowPromoPopup(true), 12000);
@@ -824,7 +904,7 @@ export default function Home() {
                   </p>
                   <p className="mt-1 text-xs leading-snug text-zinc-300 md:text-sm">
                     Avec <strong className="font-semibold text-white">GoFit</strong>, acces salle offert — fin le{" "}
-                    <span className="whitespace-nowrap font-semibold text-white">14 juin 2026</span>{" "}
+                    <span className="whitespace-nowrap font-semibold text-white">30 avril 2026</span>{" "}
                     minuit.
                   </p>
                 </div>
@@ -924,36 +1004,37 @@ export default function Home() {
 
             <div
               ref={clubPhotosCarouselRef}
-              onMouseDown={(event) => beginDrag(event.clientX, clubPhotosCarouselRef.current)}
-              onMouseMove={(event) => moveDrag(event.clientX)}
-              onMouseUp={endDrag}
-              onMouseLeave={endDrag}
-              onTouchStart={(event) => beginDrag(event.touches[0]?.clientX ?? 0, clubPhotosCarouselRef.current)}
-              onTouchMove={(event) => moveDrag(event.touches[0]?.clientX ?? 0)}
-              onTouchEnd={endDrag}
-              className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-12 pb-3 pt-1 cursor-grab active:cursor-grabbing select-none [scrollbar-width:none] [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)] md:gap-6 md:px-14 [&::-webkit-scrollbar]:hidden"
+              onPointerDown={(event) => onCarouselPointerDown(event, clubPhotosCarouselRef.current)}
+              onPointerMove={onCarouselPointerMove}
+              onPointerUp={onCarouselPointerEnd}
+              onPointerCancel={onCarouselPointerEnd}
+              className="carousel-horizontal carousel-horizontal--grab flex snap-x snap-mandatory gap-4 overflow-x-auto px-12 pb-3 pt-1 select-none [scrollbar-width:none] scroll-px-12 [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)] md:gap-6 md:px-14 md:scroll-px-14 [&::-webkit-scrollbar]:hidden"
             >
               {clubEspacePhotosLoop.map((photo, index) => (
-                <motion.figure
+                <motion.button
                   key={`${photo.src}-${index}`}
+                  type="button"
                   initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.35 }}
                   transition={{ delay: (index % clubEspacePhotos.length) * 0.05 }}
-                  className="min-w-[82%] shrink-0 snap-center md:min-w-[48%] lg:min-w-[38%]"
+                  onPointerDown={stopCarouselPointerBubble}
+                  onClick={() => openClubPhotoLightbox(index)}
+                  className="min-w-[82%] shrink-0 cursor-pointer snap-center text-left transition hover:opacity-95 md:min-w-[48%] lg:min-w-[38%]"
+                  aria-label={`Agrandir : ${photo.alt}`}
                 >
                   <div className="relative h-56 w-full overflow-hidden border border-white/10 shadow-xl shadow-black/50 md:h-72">
                     <Image
                       src={photo.src}
-                      alt={photo.alt}
+                      alt=""
                       fill
                       sizes="(max-width: 768px) 82vw, (max-width: 1024px) 48vw, 38vw"
                       className="object-cover"
                       draggable={false}
                     />
                   </div>
-                  <figcaption className="mt-2 text-center text-xs text-zinc-500 md:text-left">{photo.alt}</figcaption>
-                </motion.figure>
+                  <span className="mt-2 block text-center text-xs text-zinc-500 md:text-left">{photo.alt}</span>
+                </motion.button>
               ))}
             </div>
           </div>
@@ -990,27 +1071,24 @@ export default function Home() {
 
             <div
               ref={coachesCarouselRef}
-              onMouseDown={(event) => beginDrag(event.clientX, coachesCarouselRef.current)}
-              onMouseMove={(event) => moveDrag(event.clientX)}
-              onMouseUp={endDrag}
-              onMouseLeave={endDrag}
-              onTouchStart={(event) => beginDrag(event.touches[0]?.clientX ?? 0, coachesCarouselRef.current)}
-              onTouchMove={(event) => moveDrag(event.touches[0]?.clientX ?? 0)}
-              onTouchEnd={endDrag}
-              className="flex snap-x snap-mandatory gap-6 overflow-x-auto px-14 pb-4 cursor-default select-none [scrollbar-width:none] [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)] [&::-webkit-scrollbar]:hidden"
+              onPointerDown={(event) => onCarouselPointerDown(event, coachesCarouselRef.current)}
+              onPointerMove={onCarouselPointerMove}
+              onPointerUp={onCarouselPointerEnd}
+              onPointerCancel={onCarouselPointerEnd}
+              className="carousel-horizontal carousel-horizontal--grab flex snap-x snap-mandatory gap-6 overflow-x-auto px-14 pb-4 select-none [scrollbar-width:none] scroll-px-14 [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)] [&::-webkit-scrollbar]:hidden"
             >
             {coaches.map((coach, index) => (
                 <motion.button
                   key={coach.id}
                   type="button"
+                  onPointerDown={stopCarouselPointerBubble}
                   onClick={() => openCoachModal(coach)}
                   initial={{ opacity: 0, y: 24 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.35 }}
                   transition={{ delay: index * 0.08 }}
                   whileHover={{ y: -6 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="h-[520px] min-w-[78%] cursor-default snap-center text-left md:min-w-[42%] xl:min-w-[29%]"
+                  className="h-[520px] min-w-[78%] cursor-pointer snap-center text-left md:min-w-[42%] xl:min-w-[29%]"
                 >
                   <div className="relative flex h-full w-full flex-col overflow-hidden border border-white/15 bg-zinc-900 shadow-2xl shadow-black/60 [clip-path:polygon(8%_0,100%_0,92%_100%,0_100%)]">
                     <div className="relative h-[380px] w-full shrink-0 cursor-pointer">
@@ -1117,21 +1195,51 @@ export default function Home() {
               </p>
             </div>
 
-            <figure className="mx-auto mt-10 max-w-[min(100%,22rem)] px-2 sm:max-w-[24rem] md:max-w-[26rem]">
-              <div className="overflow-hidden rounded-2xl border-2 border-red-500/45 bg-zinc-900 shadow-2xl shadow-red-950/40 ring-1 ring-white/10">
-                <Image
-                  src="/GoFit.png"
-                  alt="Affiche GoFit : seance offerte, Fitness Club and Kids, Castres"
-                  width={832}
-                  height={1248}
-                  className="h-auto w-full object-cover object-top"
-                  sizes="(max-width: 640px) 90vw, 26rem"
-                />
-              </div>
-              <figcaption className="mt-3 text-center text-xs text-zinc-500">
-                Affiche officielle de l&apos;operation GoFit — les dates et conditions detaillees sont aussi rappellees ci-dessous.
-              </figcaption>
-            </figure>
+            <div className="mx-auto mt-10 grid w-full max-w-3xl grid-cols-1 items-stretch gap-6 px-2 sm:max-w-5xl sm:grid-cols-2 sm:gap-8">
+              <figure className="flex min-w-0 flex-col">
+                <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border-2 border-red-500/45 bg-black shadow-2xl shadow-red-950/40 ring-1 ring-white/10">
+                  <Image
+                    src="/GoFit.png"
+                    alt="Affiche GoFit : 1 seance offerte du 15 au 30 avril 2026 — Fitness Club and Kids, Castres"
+                    width={1024}
+                    height={1536}
+                    sizes="(max-width: 640px) 90vw, 45vw"
+                    className="h-full w-full object-contain object-center"
+                    priority
+                  />
+                </div>
+                <figcaption className="mt-3 text-center text-xs text-zinc-500 sm:text-left">
+                  Affiche officielle GoFit — du 15 au 30 avril 2026
+                </figcaption>
+              </figure>
+
+              <figure className="flex min-w-0 flex-col">
+                <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border-2 border-red-500/45 bg-black shadow-2xl shadow-red-950/40 ring-1 ring-white/10">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${GOFIT_YOUTUBE_SHORT_ID}`}
+                    title="Video GoFit — Fitness Club and Kids"
+                    className="absolute inset-0 h-full w-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                    loading="lazy"
+                  />
+                </div>
+                <figcaption className="mt-3 text-center text-xs text-zinc-500 sm:text-left">
+                  <a
+                    href={`https://youtube.com/shorts/${GOFIT_YOUTUBE_SHORT_ID}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-red-400/90 transition hover:text-red-300"
+                  >
+                    Voir le short sur YouTube
+                  </a>
+                </figcaption>
+              </figure>
+            </div>
+            <p className="mx-auto mt-4 max-w-2xl text-center text-xs text-zinc-500">
+              Les dates et conditions detaillees de l&apos;operation sont aussi rappellees ci-dessous.
+            </p>
 
             <div className="mt-12 flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-12">
               <div className="min-w-0 flex-1">
@@ -1401,6 +1509,111 @@ export default function Home() {
       </footer>
 
       <AnimatePresence>
+        {clubLightboxIndex !== null && (
+          <motion.div
+            key="club-lightbox-shell"
+            role="presentation"
+            className="fixed inset-0 z-[75] flex items-center justify-center bg-black/90 px-4 py-6 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={closeClubPhotoLightbox}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="club-lightbox-title"
+              className="relative flex w-full max-w-5xl flex-col"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={closeClubPhotoLightbox}
+                aria-label="Fermer la galerie"
+                className="absolute right-0 top-0 z-20 border border-white/25 bg-zinc-950/95 px-3 py-1.5 text-xl leading-none text-zinc-200 transition hover:border-red-400 hover:text-white sm:-right-2 sm:-top-2"
+              >
+                ×
+              </button>
+
+              <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.2em] text-red-400">
+                {clubLightboxIndex + 1} / {clubEspacePhotos.length}
+              </p>
+
+              <div className="relative flex items-center gap-2 sm:gap-4">
+                <button
+                  type="button"
+                  onClick={() => stepClubLightbox(-1)}
+                  aria-label="Photo precedente"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 bg-black/60 text-lg text-zinc-100 backdrop-blur transition hover:border-red-400 hover:text-red-300 sm:h-11 sm:w-11"
+                >
+                  &lt;
+                </button>
+
+                <div className="relative min-h-[min(55vh,520px)] flex-1 overflow-hidden border border-white/15 bg-zinc-900 shadow-2xl shadow-black/60">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={clubLightboxIndex}
+                      className="relative h-[min(55vh,520px)] w-full"
+                      initial={{ opacity: 0, x: 24 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -24 }}
+                      transition={{ duration: 0.22 }}
+                    >
+                      <Image
+                        src={clubEspacePhotos[clubLightboxIndex].src}
+                        alt={clubEspacePhotos[clubLightboxIndex].alt}
+                        fill
+                        sizes="(max-width: 768px) 92vw, 80vw"
+                        className="object-contain"
+                        priority
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => stepClubLightbox(1)}
+                  aria-label="Photo suivante"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/25 bg-black/60 text-lg text-zinc-100 backdrop-blur transition hover:border-red-400 hover:text-red-300 sm:h-11 sm:w-11"
+                >
+                  &gt;
+                </button>
+              </div>
+
+              <p id="club-lightbox-title" className="mt-4 text-center text-sm text-zinc-300">
+                {clubEspacePhotos[clubLightboxIndex].alt}
+              </p>
+
+              <div className="mt-4 flex justify-center gap-2 overflow-x-auto pb-1">
+                {clubEspacePhotos.map((thumb, thumbIndex) => (
+                  <button
+                    key={thumb.src}
+                    type="button"
+                    onClick={() => setClubLightboxIndex(thumbIndex)}
+                    aria-label={thumb.alt}
+                    aria-current={thumbIndex === clubLightboxIndex}
+                    className={`relative h-14 w-20 shrink-0 overflow-hidden border-2 transition sm:h-16 sm:w-24 ${
+                      thumbIndex === clubLightboxIndex
+                        ? "border-red-500 ring-2 ring-red-500/40"
+                        : "border-white/20 opacity-70 hover:border-red-400/60 hover:opacity-100"
+                    }`}
+                  >
+                    <Image src={thumb.src} alt="" fill sizes="96px" className="object-cover" />
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {activeCoach && (
           <motion.div
             key="coach-modal-shell"
@@ -1534,7 +1747,7 @@ export default function Home() {
                 <>
                   <p className="mt-2 text-sm leading-relaxed text-zinc-300">
                     L&apos;operation <strong className="text-white">GoFit</strong> (acces salle offert) se termine le{" "}
-                    <span className="whitespace-nowrap font-semibold text-white">14 juin 2026</span>{" "}
+                    <span className="whitespace-nowrap font-semibold text-white">30 avril 2026</span>{" "}
                     minuit. Temps restant :
                   </p>
                   <CompteReboursPromoClient variant="popup" />

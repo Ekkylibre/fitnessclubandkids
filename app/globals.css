@@ -59,3 +59,32 @@ html {
     animation: none;
   }
 }
+
+/** Carrousels horizontaux : scroll natif fluide sur mobile */
+.carousel-horizontal {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scroll-snap-type: x mandatory;
+}
+
+.carousel-horizontal > * {
+  touch-action: pan-x;
+}
+
+@media (max-width: 767px) {
+  .carousel-horizontal {
+    scroll-snap-type: x proximity;
+  }
+}
+
+@media (pointer: fine) {
+  .carousel-horizontal--grab {
+    cursor: grab;
+  }
+
+  .carousel-horizontal.is-dragging {
+    cursor: grabbing;
+    scroll-snap-type: none;
+  }
+}
